@@ -344,7 +344,7 @@ AprilTagDetectionArray TagDetector::detectTags (
     // Add the detection to the back of the tag detection array
 
       tf2::Transform robot_to_ref, ref_to_robot, test;
-      auto base_to_laser=tf2::Transform(tf2::Quaternion(0.513,-0.513,0.487,-0.487),tf2::Vector3(0.626,0,0.23));
+      auto base_to_laser=tf2::Transform(tf2::Quaternion(0.596,-0.596,0.380,-0.380),tf2::Vector3(0.804,0.164,0.210));
       auto laser_to_ref=tf2::Transform(tf2::Quaternion(tag_pose.pose.pose.orientation.x,tag_pose.pose.pose.orientation.y,tag_pose.pose.pose.orientation.z,tag_pose.pose.pose.orientation.w),tf2::Vector3(tag_pose.pose.pose.position.x,tag_pose.pose.pose.position.y,tag_pose.pose.pose.position.z));
 
       robot_to_ref = base_to_laser * laser_to_ref;
