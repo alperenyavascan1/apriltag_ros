@@ -61,11 +61,19 @@
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 #include <tf/transform_broadcaster.h>
-
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Transform.h>
+#include <tf2/convert.h>
+#include <tf2_2d/tf2_2d.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <apriltag.h>
 
 #include "apriltag_ros/AprilTagDetection.h"
 #include "apriltag_ros/AprilTagDetectionArray.h"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_ros/message_filter.h"
+#include "message_filters/subscriber.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
 namespace apriltag_ros
 {
@@ -78,7 +86,9 @@ T getAprilTagOption(ros::NodeHandle& pnh,
   pnh.param<T>(param_name, param_val, default_val);
   return param_val;
 }
-
+int ref;
+int originflag;
+tf2::Transform neworigin;
 // Stores the properties of a tag member of a bundle
 struct TagBundleMember
 {
@@ -168,6 +178,7 @@ class TagDetector
   double blur_;
   int refine_edges_;
   int debug_;
+
   int max_hamming_distance_ = 2;  // Tunable, but really, 2 is a good choice. Values of >=3
                                   // consume prohibitively large amounts of memory, and otherwise
                                   // you want the largest value possible.
@@ -209,6 +220,7 @@ class TagDetector
       const Eigen::Matrix4d& transform,
       const Eigen::Quaternion<double> rot_quaternion,
       const std_msgs::Header& header);
+
 
   // Detect tags in an image
   AprilTagDetectionArray detectTags(

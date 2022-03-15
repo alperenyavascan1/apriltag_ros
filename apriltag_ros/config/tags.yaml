@@ -19,6 +19,9 @@
 #   ]
 standalone_tags:
   [
+   # {id: 42, size: 0.052, name: bizimapriltag}
+    {id: 42, size: 0.13, name: bizimapriltag}
+
   ]
 # ## Tag bundle definitions
 # ### Remarks
@@ -29,18 +32,3 @@ standalone_tags:
 #
 # ### Syntax
 #
-# tag_bundles:
-#   [
-#     {
-#       name: 'CUSTOM_BUNDLE_NAME',
-#       layout:
-#         [
-#           {id: ID, size: SIZE, x: X_POS, y: Y_POS, z: Z_POS, qw: QUAT_W_VAL, qx: QUAT_X_VAL, qy: QUAT_Y_VAL, qz: QUAT_Z_VAL},
-#           ...
-#         ]
-#     },
-#     ...
-#   ]
-tag_bundles:
-  [
-  ]
