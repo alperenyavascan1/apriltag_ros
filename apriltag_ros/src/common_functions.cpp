@@ -31,7 +31,7 @@
 
 #include "apriltag_ros/common_functions.h"
 #include "image_geometry/pinhole_camera_model.h"
-
+#include "apriltag_ros/continuous_detector.h"
 #include "common/homography.h"
 #include "tagStandard52h13.h"
 #include "tagStandard41h12.h"
@@ -41,6 +41,7 @@
 #include "tagCustom48h12.h"
 #include "tagCircle21h7.h"
 #include "tagCircle49h12.h"
+
 
 namespace apriltag_ros
 {
@@ -53,7 +54,7 @@ TagDetector::TagDetector(ros::NodeHandle pnh) :
     refine_edges_(getAprilTagOption<int>(pnh, "tag_refine_edges", 1)),
     debug_(getAprilTagOption<int>(pnh, "tag_debug", 0)),
     max_hamming_distance_(getAprilTagOption<int>(pnh, "max_hamming_dist", 2)),
-    publish_tf_(getAprilTagOption<bool>(pnh, "publish_tf", false))
+    publish_tf_(getAprilTagOption<bool>(pnh, "publish_tf", true))
 {
   // Parse standalone tag descriptions specified by user (stored on ROS
   // parameter server)
@@ -153,8 +154,10 @@ TagDetector::TagDetector(ros::NodeHandle pnh) :
   td_->nthreads = threads_;
   td_->debug = debug_;
   td_->refine_edges = refine_edges_;
-
+  ref=0;
   detections_ = NULL;
+  tag_detections_publisher_milvus= pnh.advertise<geometry_msgs::PoseWithCovarianceStamped>("tag_detections_milvus", 1);
+
 }
 
 // destructor
@@ -200,6 +203,7 @@ TagDetector::~TagDetector() {
   }
 }
 
+
 AprilTagDetectionArray TagDetector::detectTags (
     const cv_bridge::CvImagePtr& image,
     const sensor_msgs::CameraInfoConstPtr& camera_info) {
@@ -227,7 +231,6 @@ AprilTagDetectionArray TagDetector::detectTags (
   double fy = camera_model.fy(); // focal length in camera y-direction [px]
   double cx = camera_model.cx(); // optical center x-coordinate [px]
   double cy = camera_model.cy(); // optical center y-coordinate [px]
-
   // Run AprilTag 2 algorithm on the image
   if (detections_)
   {
@@ -276,12 +279,6 @@ AprilTagDetectionArray TagDetector::detectTags (
         // the bundle description)
         is_part_of_bundle = true;
         std::string bundleName = bundle.name();
-
-        //===== Corner points in the world frame coordinates
-        double s = bundle.memberSize(tagID)/2;
-        addObjectPoints(s, bundle.memberT_oi(tagID),
-                        bundleObjectPoints[bundleName]);
-
         //===== Corner points in the image frame coordinates
         addImagePoints(detection, bundleImagePoints[bundleName]);
       }
@@ -322,6 +319,9 @@ AprilTagDetectionArray TagDetector::detectTags (
     // Using these frames together with cv::solvePnP directly avoids
     // AprilTag 2's frames altogether.
     // TODO solvePnP[Ransac] better?
+
+
+
     std::vector<cv::Point3d > standaloneTagObjectPoints;
     std::vector<cv::Point2d > standaloneTagImagePoints;
     addObjectPoints(tag_size/2, cv::Matx44d::eye(), standaloneTagObjectPoints);
@@ -335,13 +335,62 @@ AprilTagDetectionArray TagDetector::detectTags (
     geometry_msgs::PoseWithCovarianceStamped tag_pose =
         makeTagPose(transform, rot_quaternion, image->header);
 
+
+
     // Add the detection to the back of the tag detection array
-    AprilTagDetection tag_detection;
-    tag_detection.pose = tag_pose;
-    tag_detection.id.push_back(detection->id);
-    tag_detection.size.push_back(tag_size);
-    tag_detection_array.detections.push_back(tag_detection);
-    detection_names.push_back(standaloneDescription->frame_name());
+
+      tf2::Transform robot_to_ref, ref_to_robot, test;
+      auto base_to_laser=tf2::Transform(tf2::Quaternion(0.596,-0.596,0.380,-0.380),tf2::Vector3(0.804,0.164,0.210));
+      auto laser_to_ref=tf2::Transform(tf2::Quaternion(tag_pose.pose.pose.orientation.x,tag_pose.pose.pose.orientation.y,tag_pose.pose.pose.orientation.z,tag_pose.pose.pose.orientation.w),tf2::Vector3(tag_pose.pose.pose.position.x,tag_pose.pose.pose.position.y,tag_pose.pose.pose.position.z));
+      ROS_INFO ("TEST");
+      robot_to_ref = base_to_laser * laser_to_ref;
+      ref_to_robot = robot_to_ref.inverse();
+      geometry_msgs::PoseStamped new_pose;
+      tf2::toMsg (ref_to_robot, new_pose.pose);
+      new_pose.header.stamp = ros::Time::now();
+      new_pose.header.frame_id = image->header.frame_id;
+
+      geometry_msgs::PoseWithCovarianceStamped newposev2;
+      newposev2.pose.pose=new_pose.pose;
+      newposev2.header = new_pose.header;
+
+      AprilTagDetection tag_detection;
+      float extra=newposev2.pose.pose.position.x;
+      //newposev2.pose.pose.position.x=newposev2.pose.pose.position.z;
+      //newposev2.pose.pose.position.z=-1*newposev2.pose.pose.position.y;
+      //newposev2.pose.pose.position.y=extra;
+      tag_detection.pose = tag_pose;
+      
+      if (originflag==1){
+        tf2::Transform neworigin_inverse,current,odom;
+        neworigin_inverse=neworigin.inverse();
+        current=tf2::Transform(tf2::Quaternion(newposev2.pose.pose.orientation.x,newposev2.pose.pose.orientation.y,newposev2.pose.pose.orientation.z,newposev2.pose.pose.orientation.w),tf2::Vector3(newposev2.pose.pose.position.x,newposev2.pose.pose.position.y,newposev2.pose.pose.position.z));
+        odom=current*neworigin_inverse;
+        geometry_msgs::PoseStamped odometry;
+        tf2::toMsg (odom, odometry.pose);
+        odometry.header.stamp = ros::Time::now();
+        odometry.header.frame_id = image->header.frame_id;  
+
+        geometry_msgs::PoseWithCovarianceStamped odometry_final;
+        odometry_final.pose.pose=odometry.pose;
+        odometry_final.header = odometry.header;      
+        newposev2.pose.pose = odometry_final.pose.pose;
+
+      }
+
+ 
+      tag_detection.id.push_back(detection->id);
+      tag_detection.size.push_back(tag_size);
+      tag_detection_array.detections.push_back(tag_detection);
+      tag_detections_publisher_milvus.publish(newposev2);
+      detection_names.push_back(standaloneDescription->frame_name());
+      ref+=1;
+      if (ref==10){
+        neworigin=tf2::Transform (tf2::Quaternion(newposev2.pose.pose.orientation.x,newposev2.pose.pose.orientation.y,newposev2.pose.pose.orientation.z,newposev2.pose.pose.orientation.w),tf2::Vector3(newposev2.pose.pose.position.x,newposev2.pose.pose.position.y,newposev2.pose.pose.position.z));
+        originflag=1;
+      }
+
+
   }
 
   //=================================================================
@@ -398,6 +447,8 @@ AprilTagDetectionArray TagDetector::detectTags (
 
   return tag_detection_array;
 }
+
+
 
 int TagDetector::idComparison (const void* first, const void* second)
 {

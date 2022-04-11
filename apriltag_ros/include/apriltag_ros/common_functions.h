@@ -86,6 +86,8 @@ T getAprilTagOption(ros::NodeHandle& pnh,
   return param_val;
 }
 int ref;
+ros::Publisher tag_detections_publisher_milvus;
+
 int originflag;
 tf2::Transform neworigin;
 // Stores the properties of a tag member of a bundle
