@@ -57,6 +57,8 @@ void ContinuousDetector::onInit ()
                           image_transport::TransportHints(transport_hint));
   tag_detections_publisher_ =
       nh.advertise<AprilTagDetectionArray>("tag_detections", 1);
+
+
   if (draw_tag_detections_image_)
   {
     tag_detections_image_publisher_ = it_->advertise("tag_detections_image", 1);
@@ -94,6 +96,7 @@ void ContinuousDetector::imageCallback (
   tag_detections_publisher_.publish(
       tag_detector_->detectTags(cv_image_,camera_info));
 
+  //tag_detections_publisher_milvus.publish(tag_detector_->detectTags(cv_image_,camera_info));
   // Publish the camera image overlaid by outlines of the detected tags and
   // their payload values
   if (draw_tag_detections_image_)

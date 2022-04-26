@@ -31,7 +31,7 @@
 
 #include "apriltag_ros/common_functions.h"
 #include "image_geometry/pinhole_camera_model.h"
-
+#include "apriltag_ros/continuous_detector.h"
 #include "common/homography.h"
 #include "tagStandard52h13.h"
 #include "tagStandard41h12.h"
@@ -41,7 +41,7 @@
 #include "tagCustom48h12.h"
 #include "tagCircle21h7.h"
 #include "tagCircle49h12.h"
-
+#include "apriltag_ros/quaternion_average.h"
 
 namespace apriltag_ros
 {
@@ -156,6 +156,8 @@ TagDetector::TagDetector(ros::NodeHandle pnh) :
   td_->refine_edges = refine_edges_;
   ref=0;
   detections_ = NULL;
+  tag_detections_publisher_milvus= pnh.advertise<nav_msgs::Odometry>("tag_detections_milvus", 1);
+
 }
 
 // destructor
@@ -277,12 +279,6 @@ AprilTagDetectionArray TagDetector::detectTags (
         // the bundle description)
         is_part_of_bundle = true;
         std::string bundleName = bundle.name();
-
-        //===== Corner points in the world frame coordinates
-        double s = bundle.memberSize(tagID)/2;
-        addObjectPoints(s, bundle.memberT_oi(tagID),
-                        bundleObjectPoints[bundleName]);
-
         //===== Corner points in the image frame coordinates
         addImagePoints(detection, bundleImagePoints[bundleName]);
       }
@@ -346,7 +342,7 @@ AprilTagDetectionArray TagDetector::detectTags (
       tf2::Transform robot_to_ref, ref_to_robot, test;
       auto base_to_laser=tf2::Transform(tf2::Quaternion(0.596,-0.596,0.380,-0.380),tf2::Vector3(0.804,0.164,0.210));
       auto laser_to_ref=tf2::Transform(tf2::Quaternion(tag_pose.pose.pose.orientation.x,tag_pose.pose.pose.orientation.y,tag_pose.pose.pose.orientation.z,tag_pose.pose.pose.orientation.w),tf2::Vector3(tag_pose.pose.pose.position.x,tag_pose.pose.pose.position.y,tag_pose.pose.pose.position.z));
-
+      ROS_INFO ("TEST");
       robot_to_ref = base_to_laser * laser_to_ref;
       ref_to_robot = robot_to_ref.inverse();
       geometry_msgs::PoseStamped new_pose;
@@ -354,42 +350,55 @@ AprilTagDetectionArray TagDetector::detectTags (
       new_pose.header.stamp = ros::Time::now();
       new_pose.header.frame_id = image->header.frame_id;
 
-      geometry_msgs::PoseWithCovarianceStamped newposev2;
+      nav_msgs::Odometry newposev2;
       newposev2.pose.pose=new_pose.pose;
       newposev2.header = new_pose.header;
 
       AprilTagDetection tag_detection;
       float extra=newposev2.pose.pose.position.x;
-      newposev2.pose.pose.position.x=newposev2.pose.pose.position.z;
-      newposev2.pose.pose.position.z=-1*newposev2.pose.pose.position.y;
-      newposev2.pose.pose.position.y=extra;
-      tag_detection.pose = newposev2;
-
+      //newposev2.pose.pose.position.x=newposev2.pose.pose.position.z;
+      //newposev2.pose.pose.position.z=-1*newposev2.pose.pose.position.y;
+      //newposev2.pose.pose.position.y=extra;
+      tag_detection.pose = tag_pose;
+      
       if (originflag==1){
         tf2::Transform neworigin_inverse,current,odom;
         neworigin_inverse=neworigin.inverse();
         current=tf2::Transform(tf2::Quaternion(newposev2.pose.pose.orientation.x,newposev2.pose.pose.orientation.y,newposev2.pose.pose.orientation.z,newposev2.pose.pose.orientation.w),tf2::Vector3(newposev2.pose.pose.position.x,newposev2.pose.pose.position.y,newposev2.pose.pose.position.z));
-        odom=current*neworigin_inverse;
-        geometry_msgs::PoseStamped odometry;
-        tf2::toMsg (odom, odometry.pose);
+        odom=neworigin*current.inverse();
+        nav_msgs::Odometry odometry;
+        tf2::toMsg (odom, odometry.pose.pose);
         odometry.header.stamp = ros::Time::now();
         odometry.header.frame_id = image->header.frame_id;  
 
         geometry_msgs::PoseWithCovarianceStamped odometry_final;
-        odometry_final.pose.pose=odometry.pose;
+        odometry_final.pose.pose=odometry.pose.pose;
         odometry_final.header = odometry.header;      
-        tag_detection.pose = odometry_final;
+        newposev2.pose.pose = odometry_final.pose.pose;
 
       }
+      else{
+        Eigen::Vector4f data(newposev2.pose.pose.orientation.x,newposev2.pose.pose.orientation.y,newposev2.pose.pose.orientation.z,newposev2.pose.pose.orientation.w);
+        quaternions.insert(quaternions.begin(),data);
+        ROS_INFO("%f %f %f %f",data(0),data(1),data(2),data(3));
+        Eigen::Vector3f datapos(newposev2.pose.pose.position.x,newposev2.pose.pose.position.y,newposev2.pose.pose.position.z);
+        positions.insert(positions.begin(),datapos);
+        ROS_INFO("%f %f %f",datapos(0),datapos(1),datapos(2));
 
+      }
  
       tag_detection.id.push_back(detection->id);
       tag_detection.size.push_back(tag_size);
       tag_detection_array.detections.push_back(tag_detection);
+      tag_detections_publisher_milvus.publish(newposev2);
       detection_names.push_back(standaloneDescription->frame_name());
       ref+=1;
-      if (ref==10){
-        neworigin=tf2::Transform (tf2::Quaternion(newposev2.pose.pose.orientation.x,newposev2.pose.pose.orientation.y,newposev2.pose.pose.orientation.z,newposev2.pose.pose.orientation.w),tf2::Vector3(newposev2.pose.pose.position.x,newposev2.pose.pose.position.y,newposev2.pose.pose.position.z));
+      if (ref==50){
+        Eigen::Vector3f position_result=positionAverage(positions);
+        ROS_INFO("%f %f %f",position_result(0),position_result(1),position_result(2));
+        Eigen::Vector4f quaternion_result=quaternionAverage(quaternions);
+        ROS_INFO("%f %f %f %f",quaternion_result(0),quaternion_result(1),quaternion_result(2),quaternion_result(3));
+        neworigin=tf2::Transform (tf2::Quaternion(quaternion_result(0),quaternion_result(1),quaternion_result(2),quaternion_result(3)),tf2::Vector3(position_result(0),position_result(1),position_result(2)));
         originflag=1;
       }
 

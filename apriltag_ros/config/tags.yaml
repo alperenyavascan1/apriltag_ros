@@ -19,9 +19,7 @@
 #   ]
 standalone_tags:
   [
-   # {id: 42, size: 0.052, name: bizimapriltag}
-    {id: 42, size: 0.13, name: bizimapriltag}
-
+    {id: 42, size: 0.062, name: bizimapriltag}
   ]
 # ## Tag bundle definitions
 # ### Remarks

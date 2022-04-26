@@ -64,10 +64,9 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Transform.h>
 #include <tf2/convert.h>
-#include <tf2_2d/tf2_2d.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <apriltag.h>
-
+#include "nav_msgs/Odometry.h"
 #include "apriltag_ros/AprilTagDetection.h"
 #include "apriltag_ros/AprilTagDetectionArray.h"
 #include "tf2_ros/transform_listener.h"
@@ -87,6 +86,12 @@ T getAprilTagOption(ros::NodeHandle& pnh,
   return param_val;
 }
 int ref;
+
+ros::Publisher tag_detections_publisher_milvus;
+std::vector<Eigen::Vector4f> quaternions;
+std::vector<Eigen::Vector3f> positions;
+
+
 int originflag;
 tf2::Transform neworigin;
 // Stores the properties of a tag member of a bundle
