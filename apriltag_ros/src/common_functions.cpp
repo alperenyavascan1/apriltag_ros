@@ -156,7 +156,11 @@ TagDetector::TagDetector(ros::NodeHandle pnh) :
   td_->refine_edges = refine_edges_;
   ref=0;
   detections_ = NULL;
+<<<<<<< HEAD
   tag_detections_publisher_milvus= pnh.advertise<nav_msgs::Odometry>("tag_detections_milvus", 1);
+=======
+  tag_detections_publisher_milvus= pnh.advertise<geometry_msgs::PoseWithCovarianceStamped>("tag_detections_milvus", 1);
+>>>>>>> a7bdac20f73fa56ee3057c913ad84ec46df411f9
 
 }
 

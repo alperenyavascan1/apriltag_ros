@@ -86,11 +86,15 @@ T getAprilTagOption(ros::NodeHandle& pnh,
   return param_val;
 }
 int ref;
+<<<<<<< HEAD
 
 ros::Publisher tag_detections_publisher_milvus;
 std::vector<Eigen::Vector4f> quaternions;
 std::vector<Eigen::Vector3f> positions;
 
+=======
+ros::Publisher tag_detections_publisher_milvus;
+>>>>>>> a7bdac20f73fa56ee3057c913ad84ec46df411f9
 
 int originflag;
 tf2::Transform neworigin;
